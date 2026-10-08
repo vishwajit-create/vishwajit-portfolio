@@ -25,8 +25,16 @@ const CONFIG = {
 
 const state = {
   repos: [], filteredRepos: [], filter: 'all',
-  messages: JSON.parse(localStorage.getItem('vk_msgs') || '[]'),
 };
+
+try {
+  const saved = JSON.parse(localStorage.getItem('vk_msgs') || '[]');
+  if (Array.isArray(saved)) {
+    state.messages = saved;
+  }
+} catch {
+  state.messages = [];
+}
 
 // ─── INIT ─────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -128,7 +136,6 @@ function initNavCanvas() {
       vx: (Math.random() - 0.5) * 0.4,
       vy: (Math.random() - 0.5) * 0.4,
       r: Math.random() * 2 + 0.8,
-      // each particle has its own color tint
       hue: [240, 200, 280, 320][Math.floor(Math.random() * 4)],
     }));
   }
@@ -139,7 +146,6 @@ function initNavCanvas() {
   let mx = -9999, my = -9999;
   window.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; }, { passive: true });
 
-  // Create a shooting star
   function spawnStar() {
     const angle = Math.random() * Math.PI * 0.5 + Math.PI * 0.1;
     stars.push({
@@ -155,7 +161,6 @@ function initNavCanvas() {
   function draw(ts) {
     ctx.clearRect(0, 0, W, H);
 
-    // ── Shooting stars ──
     if (ts - lastStar > 3500 + Math.random() * 3000) {
       spawnStar(); lastStar = ts;
     }
@@ -171,7 +176,7 @@ function initNavCanvas() {
       ctx.moveTo(tail.x, tail.y);
       ctx.lineTo(s.x, s.y);
       ctx.stroke();
-      // glow head
+
       const grd = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 4);
       grd.addColorStop(0, `rgba(220,230,255,${s.life})`);
       grd.addColorStop(1, 'transparent');
@@ -183,11 +188,9 @@ function initNavCanvas() {
       s.x += s.vx; s.y += s.vy; s.life -= 0.012;
     });
 
-    // ── Particles ──
     for (let i = 0; i < pts.length; i++) {
       const p = pts[i];
 
-      // Mouse attraction (gentle)
       const dmx = mx - p.x, dmy = my - p.y;
       const dm = Math.sqrt(dmx * dmx + dmy * dmy);
       if (dm < 160 && dm > 1) {
@@ -201,7 +204,6 @@ function initNavCanvas() {
       if (p.y < 0) { p.y = 0; p.vy *= -1; }
       if (p.y > H) { p.y = H; p.vy *= -1; }
 
-      // Draw connection lines
       for (let j = i + 1; j < pts.length; j++) {
         const q = pts[j];
         const dx = p.x - q.x, dy = p.y - q.y;
@@ -217,7 +219,6 @@ function initNavCanvas() {
         }
       }
 
-      // Glow dot
       const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
       grd.addColorStop(0, `hsla(${p.hue},90%,75%,0.9)`);
       grd.addColorStop(0.5, `hsla(${p.hue},80%,65%,0.3)`);
@@ -227,7 +228,6 @@ function initNavCanvas() {
       ctx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2);
       ctx.fill();
 
-      // Solid centre
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
       ctx.fillStyle = `hsla(${p.hue},90%,80%,0.95)`;
@@ -273,7 +273,6 @@ function initNavbar() {
     document.querySelector(l.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth' });
   }));
 
-  // Theme toggle (placeholder – toggles a class)
   document.getElementById('theme-toggle')?.addEventListener('click', () => {
     document.body.classList.toggle('light');
   });
@@ -326,8 +325,7 @@ function initReveal() {
 
 // ─── SKILL RINGS ─────────────────────────────────────────────────
 function initSkillRings() {
-  const circum = 2 * Math.PI * 44; // r=44
-
+  const circum = 2 * Math.PI * 44;
   const gradMap = ['url(#grad0)','url(#grad1)','url(#grad2)','url(#grad3)','url(#grad4)','url(#grad5)'];
 
   const obs = new IntersectionObserver(entries => {
@@ -335,7 +333,7 @@ function initSkillRings() {
       if (!entry.isIntersecting) return;
       const card = entry.target;
       const fills = card.querySelectorAll('.ring-fill');
-      fills.forEach((fill, i) => {
+      fills.forEach((fill) => {
         const pct = parseInt(fill.getAttribute('data-pct') || '0');
         const grad = gradMap[Array.from(card.closest('.skill-rings-grid')?.children || []).indexOf(card)] || gradMap[0];
         fill.style.stroke = grad;
@@ -442,12 +440,24 @@ function renderProjects() {
   });
 }
 
+function isSafeExternalUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+
+  try {
+    const url = new URL(rawUrl, window.location.href);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
 function makeCard(repo, idx) {
   const lang = repo.language || 'Unknown';
   const color = CONFIG.LANG_COLORS[lang] || CONFIG.LANG_COLORS.default;
   const icon = CONFIG.REPO_ICONS[lang] || CONFIG.REPO_ICONS.default;
   const desc = repo.description || 'No description provided.';
   const topics = repo.topics || [];
+  const safeHomepage = isSafeExternalUrl(repo.homepage);
 
   const card = document.createElement('div');
   card.className = 'project-card';
@@ -457,10 +467,10 @@ function makeCard(repo, idx) {
     <div class="proj-header">
       <span class="proj-icon">${icon}</span>
       <div class="proj-links">
-        <a href="${repo.html_url}" target="_blank" rel="noopener" class="proj-link" title="GitHub">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+        <a href="${esc(repo.html_url)}" target="_blank" rel="noopener noreferrer" class="proj-link" title="GitHub">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.5[...]
         </a>
-        ${repo.homepage ? `<a href="${repo.homepage}" target="_blank" rel="noopener" class="proj-link" title="Live Demo">
+        ${safeHomepage ? `<a href="${esc(safeHomepage)}" target="_blank" rel="noopener noreferrer" class="proj-link" title="Live Demo">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
         </a>` : ''}
       </div>
@@ -468,7 +478,7 @@ function makeCard(repo, idx) {
     <div class="proj-name">${esc(repo.name.replace(/[-_]/g, ' '))}</div>
     <div class="proj-desc">${esc(desc.slice(0, 120))}${desc.length > 120 ? '…' : ''}</div>
     <div class="proj-meta">
-      ${lang !== 'Unknown' ? `<div class="proj-lang"><div class="lang-dot" style="background:${color}"></div>${lang}</div>` : ''}
+      ${lang !== 'Unknown' ? `<div class="proj-lang"><div class="lang-dot" style="background:${color}"></div>${esc(lang)}</div>` : ''}
       ${repo.stargazers_count ? `<div class="proj-stars"><svg viewBox="0 0 24 24" fill="#f59e0b" width="13" height="13"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>${repo.stargazers_count}</div>` : ''}
     </div>
     ${topics.length ? `<div class="proj-tag-list">${topics.slice(0, 4).map(t => `<span class="proj-tag">${esc(t)}</span>`).join('')}</div>` : ''}
@@ -477,50 +487,56 @@ function makeCard(repo, idx) {
   return card;
 }
 
-// ─── FALLBACK PROJECTS ───────────────────────────────────────────
 function fallbackProjects() {
   state.repos = [
-    { name: 'Urban-hair-plaza-website', description: 'Urban Hair Plaza — full salon website with modern UI built with HTML/CSS/JS.', language: 'HTML', html_url: 'https://github.com/vishwajit-create/Urban-hair-plaza-website-', stargazers_count: 0, forks_count: 0, topics: ['html','css','salon'], homepage: null, fork: false },
-    { name: 'urban-hairplaza', description: 'Urban Hair Plaza — responsive hair salon booking and services platform.', language: 'HTML', html_url: 'https://github.com/vishwajit-create/urban-hairplaza', stargazers_count: 0, forks_count: 0, topics: ['html','booking'], homepage: null, fork: false },
-    { name: 'monitor-website', description: 'Python bot that pings websites to keep them alive on Railway or Render — prevents sleeping.', language: 'Python', html_url: 'https://github.com/vishwajit-create/monitor-website', stargazers_count: 0, forks_count: 0, topics: ['python','bot','automation'], homepage: null, fork: false },
-    { name: 'kshitij-sonal-website', description: 'Personal academic website for Kshitij Sonal — Researcher & Economist. Built with Node.js + Express.', language: 'JavaScript', html_url: 'https://github.com/vishwajit-create/kshitij-sonal-website', stargazers_count: 0, forks_count: 0, topics: ['nodejs','express'], homepage: null, fork: false },
-    { name: 'Blogspot', description: 'Blog web application with live demo deployed on Vercel.', language: 'HTML', html_url: 'https://github.com/vishwajit-create/Blogspot', stargazers_count: 0, forks_count: 0, topics: ['html','blog','vercel'], homepage: 'https://project-4tmsy.vercel.app', fork: false },
-    { name: 'hairsalonapp', description: 'Full-featured hair salon booking application built with TypeScript, deployed on Vercel.', language: 'TypeScript', html_url: 'https://github.com/vishwajit-create/hairsalonapp', stargazers_count: 0, forks_count: 0, topics: ['typescript','booking','vercel'], homepage: 'https://hairsalonapp-puce.vercel.app', fork: false },
-    { name: 'UHP-Project', description: 'Urban Hair Plaza project — core backend and business logic.', language: 'JavaScript', html_url: 'https://github.com/vishwajit-create/UHP-Project', stargazers_count: 0, forks_count: 0, topics: ['javascript'], homepage: null, fork: false },
+    { name: 'Urban-hair-plaza-website', description: 'Urban Hair Plaza — full salon website with modern UI built with HTML/CSS/JS.', language: 'HTML', html_url: 'https://github.com/vishwajit-create/Urban-hair-plaza-website', stargazers_count: 0, fork: false },
+    { name: 'urban-hairplaza', description: 'Urban Hair Plaza — responsive hair salon booking and services platform.', language: 'HTML', html_url: 'https://github.com/vishwajit-create/urban-hairplaza', stargazers_count: 0, fork: false },
+    { name: 'monitor-website', description: 'Python bot that pings websites to keep them alive on Railway or Render — prevents sleeping.', language: 'Python', html_url: 'https://github.com/vishwajit-create/monitor-website', stargazers_count: 0, fork: false },
+    { name: 'kshitij-sonal-website', description: 'Personal academic website for Kshitij Sonal — Researcher & Economist. Built with Node.js + Express.', language: 'JavaScript', html_url: 'https://github.com/vishwajit-create/kshitij-sonal-website', stargazers_count: 0, fork: false },
+    { name: 'Blogspot', description: 'Blog web application with live demo deployed on Vercel.', language: 'HTML', html_url: 'https://github.com/vishwajit-create/Blogspot', stargazers_count: 0, fork: false },
+    { name: 'hairsalonapp', description: 'Full-featured hair salon booking application built with TypeScript, deployed on Vercel.', language: 'TypeScript', html_url: 'https://github.com/vishwajit-create/hairsalonapp', stargazers_count: 0, fork: false },
+    { name: 'UHP-Project', description: 'Urban Hair Plaza project — core backend and business logic.', language: 'JavaScript', html_url: 'https://github.com/vishwajit-create/UHP-Project', stargazers_count: 0, fork: false },
   ];
   state.filteredRepos = state.repos;
   renderProjects();
+}
+
+function sanitizeText(value, maxLength) {
+  const safe = String(value ?? '').slice(0, maxLength).trim();
+  return /^\s*[=+\-@]/.test(safe) ? safe.replace(/^[=+\-@]/, '') : safe;
 }
 
 // ─── CONTACT FORM ────────────────────────────────────────────────
 function initContactForm() {
   const form = document.getElementById('contact-form');
   if (!form) return;
+
   form.addEventListener('submit', e => {
     e.preventDefault();
+
     const btnText = document.getElementById('send-text');
     const spin = document.getElementById('send-spin');
     const success = document.getElementById('form-success');
+    const honeypot = form.querySelector('input[name="website"]');
+
+    if (honeypot && honeypot.value.trim() !== '') return;
+
+    const fd = new FormData(form);
+    const formData = {
+      name: sanitizeText(fd.get('name'), 100),
+      email: sanitizeText(fd.get('email'), 150),
+      subject: sanitizeText(fd.get('subject'), 150),
+      message: sanitizeText(fd.get('message'), 2000),
+    };
+
+    if (!formData.name || !formData.email || !formData.subject || !formData.message) {
+      alert('Please complete all fields before sending.');
+      return;
+    }
 
     btnText?.classList.add('hidden');
     spin?.classList.remove('hidden');
 
-    const formData = {
-      name: form.name.value,
-      email: form.email.value,
-      subject: form.subject.value,
-      message: form.message.value,
-    };
-
-    // Save to localStorage backup
-    state.messages.push({
-      ...formData,
-      id: Date.now(),
-      timestamp: new Date().toISOString(),
-    });
-    localStorage.setItem('vk_msgs', JSON.stringify(state.messages));
-
-    // Send to Google Sheets Apps Script
     fetch(CONFIG.GOOGLE_SHEETS_URL, {
       method: 'POST',
       mode: 'no-cors',
@@ -530,24 +546,26 @@ function initContactForm() {
       body: JSON.stringify(formData),
     })
       .then(() => {
-        btnText?.classList.remove('hidden');
-        spin?.classList.add('hidden');
         success?.classList.remove('hidden');
         form.reset();
         setTimeout(() => success?.classList.add('hidden'), 5000);
       })
-      .catch(err => {
-        console.error('Submission error:', err);
+      .catch(() => {
+        alert('Could not send your message. Please try again or email me directly.');
+      })
+      .finally(() => {
         btnText?.classList.remove('hidden');
         spin?.classList.add('hidden');
-        success?.classList.remove('hidden');
-        form.reset();
-        setTimeout(() => success?.classList.add('hidden'), 5000);
       });
   });
 }
 
 // ─── UTILS ───────────────────────────────────────────────────────
 function esc(s = '') {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
 }
