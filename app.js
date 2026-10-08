@@ -4,7 +4,7 @@
 const CONFIG = {
   GITHUB_USERNAME: 'vishwajit-create',
   GITHUB_BASE: 'https://api.github.com',
-  GOOGLE_SHEETS_URL: 'https://script.google.com/macros/s/AKfycby1Uc706O9LkJ9Uhyd5QhMNAR5bgJE5Lg31Iy5fxunHmRyuIrWsA_Y7l9UIxdjFWNX0dg/exec',
+  GOOGLE_SHEETS_URL: 'https://script.google.com/macros/s/AKfycbyTjc_NzJdItzpQOHKRBMwRiCBqQ3Qyblfzcbk3w_iCHv91-pFqaL9E-o-0je9nv2-u-Q/exec',
   TYPEWRITER_STRINGS: [
     'Student Developer 👨‍💻',
     'Python Bot Builder 🤖',
